@@ -3,3 +3,6 @@
 .ycm_*
 
 introspecto
+*_generated.*
+
+sample/print_members

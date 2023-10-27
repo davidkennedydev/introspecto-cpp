@@ -5,8 +5,17 @@ all: introspecto
 introspecto: src/main.cpp
 	$(CXX) $^ -o $@
 
-reflection_generated.cpp: introspecto src/sample/test.cpp
-	./$^
-
 clean:
-	-rm introspecto
+	-rm introspecto .*_generated.h
+
+.introspecto_generated.h: introspecto ./sample/person.hpp
+	-./$^ 2> $@.log
+
+./sample/print_members: sample/main.cpp | .introspecto_generated.h
+	g++ -std=c++23 $< -o $@
+
+test: sample/print_members
+	./$<
+
+.PHONY = .test .clean
+

@@ -1,3 +1,5 @@
+#pragma once
+
 #include <string>
 
 struct Person {
@@ -5,7 +7,7 @@ struct Person {
   std::string fullname;
 };
 
-
 class AnotherKindOfPerson : Person {
+public:
   std::string peculiarity;
 };

@@ -1,3 +1,5 @@
+#pragma once
+
 #include <string_view>
 
 namespace introspecto {
@@ -22,3 +24,5 @@ Introspect<UserType> introspect(UserType &instance) {
 }
 
 }; // namespace introspecto
+
+#include "../.introspecto_generated.h"
