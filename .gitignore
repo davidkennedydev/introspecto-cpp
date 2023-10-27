@@ -1,0 +1,5 @@
+*.swp
+.*_generated.*
+.ycm_*
+
+introspecto
