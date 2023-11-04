@@ -5,10 +5,13 @@ all: introspecto
 introspecto: src/main.cpp
 	$(CXX) $^ -o $@
 
+debug: src/main.cpp
+	$(CXX) -g $^ -o $@
+
 clean:
 	-rm introspecto .*_generated.h
 
-.introspecto_generated.h: introspecto ./sample/person.hpp
+.introspecto_generated.h: introspecto ./sample/main.cpp
 	-./$^ 2> $@.log
 
 ./sample/print_members: sample/main.cpp | .introspecto_generated.h
@@ -17,5 +20,4 @@ clean:
 test: sample/print_members
 	./$<
 
-.PHONY = .test .clean
-
+.PHONY = .test .clean debug
