@@ -2,6 +2,7 @@
 #include <cctype>
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/RecursiveASTVisitor.h>
+#include <clang/AST/Type.h>
 #include <clang/Basic/SourceManager.h>
 #include <clang/Frontend/FrontendActions.h>
 #include <clang/Tooling/CommonOptionsParser.h>
@@ -24,7 +25,7 @@ std::ofstream reflection_generated(".introspecto_generated.h");
 
 #include <set>
 
-std::vector<std::string> user_declared_files;
+std::set<std::string> user_declared_files;
 
 class IncludeFinder : public clang::PPCallbacks {
 public:
@@ -39,9 +40,11 @@ public:
                           clang::SrcMgr::CharacteristicKind FileType) override {
 
     if (!IsAngled && FileType == decltype(FileType)::C_User &&
+        FileName.str().ends_with("hpp") && // XXX files terminated just with h,
+                                           // fail to find c++ headers
         !FileName.str().ends_with("introspecto.h") &&
         !FileName.str().ends_with("_generated.h")) {
-      user_declared_files.push_back(SearchPath.str() + "/" + FileName.str());
+      user_declared_files.insert(SearchPath.str() + "/" + FileName.str());
       std::cout << "User file declaration: " << FileName.str() << "\n";
     }
   }
@@ -67,7 +70,7 @@ public:
     if (declaration->isThisDeclarationADefinition() &&
         isUserDefined(declaration) && !declaration->getNameAsString().empty() &&
         !declaration->isInExportDeclContext() &&
-        !declaration->fields().empty()) {
+        !declaration->isModulePrivate() && !declaration->fields().empty()) {
 
       std::string userType = declaration->getQualifiedNameAsString();
 
@@ -96,7 +99,12 @@ public:
     return declaration->getTranslationUnitDecl() ==
                declaration->getDeclContext() &&
            !declaration->isInStdNamespace() &&
-           !declaration->getNameAsString().starts_with("_");
+           !declaration->getNameAsString().starts_with("_") &&
+           user_declared_files.contains(
+               declaration->getASTContext()
+                   .getSourceManager()
+                   .getPresumedLoc(declaration->getLocation())
+                   .getFilename());
   }
 };
 
@@ -138,25 +146,23 @@ llvm::cl::OptionCategory MyToolCategory("My Tool Options");
 
 int main(int argc, const char **argv) {
 
-  reflection_generated << "namespace introspecto {\n\n";
+  reflection_generated << "#pragma once\n\n"
+                       << "namespace introspecto {\n\n";
 
   auto OptionsParser =
       clang::tooling::CommonOptionsParser::create(argc, argv, MyToolCategory);
   clang::tooling::ClangTool Tool(OptionsParser->getCompilations(),
                                  OptionsParser->getSourcePathList());
 
-  const int pre_status = Tool.run(
+  int status = Tool.run(
       clang::tooling::newFrontendActionFactory<IncludeFinderAction>().get());
 
-  clang::tooling::ClangTool userFilesTool(OptionsParser->getCompilations(),
-                                          user_declared_files);
-
-  const int status = userFilesTool.run(
+  status += Tool.run(
       clang::tooling::newFrontendActionFactory<ReflectionFrontendAction>()
           .get());
 
-  reflection_generated << "\n}\n\n";
+  reflection_generated << "}\n\n";
   reflection_generated.close();
 
-  return 1e4 * pre_status + status;
+  return status;
 }

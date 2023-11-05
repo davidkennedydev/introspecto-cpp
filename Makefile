@@ -20,4 +20,4 @@ clean:
 test: sample/print_members
 	./$<
 
-.PHONY = .test .clean debug
+.PHONY = test clean debug
