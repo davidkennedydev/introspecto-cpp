@@ -1,7 +1,7 @@
 
 // XXX: Do not change include order, todo: fix it with modules
 #include "person.hpp"
-#include "../src/introspecto.h"
+#include <introspecto.h>
 
 #include <iostream>
 
@@ -11,8 +11,7 @@ int main() {
 
   auto personInfo = introspecto::introspect(person);
 
-  personInfo.foreachField(
-      [](const std::string_view name, const auto value) {
-        std::cout << name << " = " << value << '\n';
-      });
+  personInfo.foreachField([](const std::string_view name, const auto value) {
+    std::cout << name << " = " << value << '\n';
+  });
 }

@@ -8,16 +8,16 @@ introspecto: src/main.cpp
 debug: src/main.cpp
 	$(CXX) -g $^ -o $@
 
-clean:
-	-rm introspecto .*_generated.h
-
 .introspecto_generated.h: introspecto ./sample/main.cpp
 	-./$^ 2> $@.log
 
 ./sample/print_members: sample/main.cpp | .introspecto_generated.h
-	g++ -std=c++23 $< -o $@
+	g++ -std=c++23 -I./include $< -o $@
 
 test: sample/print_members
 	./$<
+
+clean:
+	-rm -f introspecto .*_generated.h ./sample/print_members
 
 .PHONY = test clean debug
