@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cctype>
+#include <clang/AST/Decl.h>
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/RecursiveASTVisitor.h>
 #include <clang/AST/Type.h>
@@ -10,7 +11,9 @@
 #include <cstdio>
 #include <fstream>
 #include <ios>
+#include <iterator>
 #include <ostream>
+#include <string_view>
 
 std::ofstream reflection_generated(".introspecto_generated.h");
 
@@ -23,9 +26,13 @@ std::ofstream reflection_generated(".introspecto_generated.h");
 #include <clang/Tooling/Tooling.h>
 #include <iostream>
 
-#include <set>
+#include <unordered_set>
 
-std::set<std::string> user_declared_files;
+std::unordered_set<std::string> user_declared_files;
+std::unordered_set<std::string> declared_symbols;
+
+std::set<std::string> dependency_files;
+std::set<std::string> dependency_symbols;
 
 class IncludeFinder : public clang::PPCallbacks {
 public:
@@ -39,7 +46,9 @@ public:
                           const clang::Module *Imported,
                           clang::SrcMgr::CharacteristicKind FileType) override {
 
-    if (!IsAngled && FileType == decltype(FileType)::C_User &&
+    if (IsAngled) {
+      dependency_files.insert(FileName.str());
+    } else if (FileType == decltype(FileType)::C_User &&
         FileName.str().ends_with("hpp") && // XXX files terminated just with h,
                                            // fail to find c++ headers
         !FileName.str().ends_with("introspecto.h") &&
@@ -66,7 +75,7 @@ class ReflectionASTVisitor
 public:
   ReflectionASTVisitor(std::ostream &out) : generated(out){};
 
-  bool VisitCXXRecordDecl(clang::CXXRecordDecl *declaration) {
+  virtual bool VisitCXXRecordDecl(clang::CXXRecordDecl *declaration) {
     if (declaration->isThisDeclarationADefinition() &&
         isUserDefined(declaration) && !declaration->getNameAsString().empty() &&
         !declaration->isInExportDeclContext() &&
@@ -106,6 +115,49 @@ public:
                    .getPresumedLoc(declaration->getLocation())
                    .getFilename());
   }
+
+  static bool isDeclared(const std::string& symbolName) {
+    return declared_symbols.contains(symbolName);
+  }
+
+  std::string get_fullname(clang::NamedDecl *decl) {
+    std::string name = decl->getNameAsString();
+    clang::DeclContext* context = decl->getDeclContext();
+    while (context && isa<clang::NamespaceDecl>(context)) {
+      auto* namespaceDecl = cast<clang::NamespaceDecl>(context);
+      name = namespaceDecl->getNameAsString() + "::" + name;
+      context = context->getParent();
+    }
+    return name;
+  }
+
+  virtual void HandleTranslationUnit(clang::ASTContext &Context) {
+    for (clang::Decl *Decl : Context.getTranslationUnitDecl()->decls()) {
+      if (auto *NamedDecl = dyn_cast<clang::NamedDecl>(Decl)) {
+        ::declared_symbols.insert(get_fullname(NamedDecl));
+      }
+    }
+  }
+
+  virtual bool VisitCallExpr(clang::CallExpr *CallExpr) {
+    clang::Expr* callee = CallExpr->getCallee()->IgnoreParenCasts();
+    if (isa<clang::DeclRefExpr>(callee)) {
+      auto* decl_ref = cast<clang::DeclRefExpr>(callee);
+      auto* named_decl = decl_ref->getDecl();
+      if (named_decl) {
+        if (auto name = get_fullname(named_decl);
+          !isDeclared(name)
+          && named_decl->isUsed()
+          && named_decl->isExternallyDeclarable()
+          && !named_decl->isInStdNamespace()
+          && !named_decl->isImplicit()
+          )
+          dependency_symbols.insert(name);
+        }
+    }
+    return true;
+  }
+
 };
 
 #include <clang/AST/ASTConsumer.h>
@@ -136,6 +188,27 @@ protected:
   }
 };
 
+void GenerateDependencyInfo() {
+
+  reflection_generated << "  namespace dependency {\n";
+
+  auto generate_list = [](std::string &&name,
+                          const std::set<std::string> content) {
+    reflection_generated << "    constexpr const char* const " << name << "[] = ";
+    bool first = true;
+    for (std::string_view element : content) {
+      reflection_generated << (first ? '{' : ',') << "\n      \"" << element << '"';
+      first = false;
+    }
+    reflection_generated << "\n    };\n\n";
+  };
+
+  generate_list("includes", dependency_files);
+  generate_list("symbols", dependency_symbols);
+
+  reflection_generated << "  }\n\n";
+}
+
 // main.cpp
 #include <clang/Tooling/CommonOptionsParser.h>
 #include <clang/Tooling/Tooling.h>
@@ -160,6 +233,8 @@ int main(int argc, const char **argv) {
   status += Tool.run(
       clang::tooling::newFrontendActionFactory<ReflectionFrontendAction>()
           .get());
+
+  GenerateDependencyInfo();
 
   reflection_generated << "}\n\n";
   reflection_generated.close();
