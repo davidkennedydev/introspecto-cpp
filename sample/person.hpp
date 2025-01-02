@@ -7,7 +7,7 @@ struct Person {
   std::string fullname;
 };
 
-class AnotherKindOfPerson : Person {
+class AnotherKindOfPerson : public Person {
 public:
   std::string peculiarity;
 };
