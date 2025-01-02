@@ -43,17 +43,17 @@ public:
                           clang::OptionalFileEntryRef File,
                           clang::StringRef SearchPath,
                           clang::StringRef RelativePath,
-                          const clang::Module *Imported,
-                          bool ModuleImported,
+                          const clang::Module *Imported, bool ModuleImported,
                           clang::SrcMgr::CharacteristicKind FileType) override {
 
     if (IsAngled) {
       dependency_files.insert(FileName.str());
     } else if (FileType == decltype(FileType)::C_User &&
-        FileName.str().ends_with("hpp") && // XXX files terminated just with h,
-                                           // fail to find c++ headers
-        !FileName.str().ends_with("introspecto.h") &&
-        !FileName.str().ends_with("_generated.h")) {
+               FileName.str().ends_with(
+                   "hpp") && // XXX files terminated just with h,
+                             // fail to find c++ headers
+               !FileName.str().ends_with("introspecto.h") &&
+               !FileName.str().ends_with("_generated.h")) {
       user_declared_files.insert(SearchPath.str() + "/" + FileName.str());
       std::cout << "User file declaration: " << FileName.str() << "\n";
     }
@@ -74,7 +74,7 @@ class ReflectionASTVisitor
   std::ostream &generated;
 
 public:
-  ReflectionASTVisitor(std::ostream &out) : generated(out){};
+  ReflectionASTVisitor(std::ostream &out) : generated(out) {};
 
   virtual bool VisitCXXRecordDecl(clang::CXXRecordDecl *declaration) {
     if (declaration->isThisDeclarationADefinition() &&
@@ -117,15 +117,15 @@ public:
                    .getFilename());
   }
 
-  static bool isDeclared(const std::string& symbolName) {
+  static bool isDeclared(const std::string &symbolName) {
     return declared_symbols.contains(symbolName);
   }
 
   std::string get_fullname(clang::NamedDecl *decl) {
     std::string name = decl->getNameAsString();
-    clang::DeclContext* context = decl->getDeclContext();
+    clang::DeclContext *context = decl->getDeclContext();
     while (context && isa<clang::NamespaceDecl>(context)) {
-      auto* namespaceDecl = cast<clang::NamespaceDecl>(context);
+      auto *namespaceDecl = cast<clang::NamespaceDecl>(context);
       name = namespaceDecl->getNameAsString() + "::" + name;
       context = context->getParent();
     }
@@ -141,24 +141,20 @@ public:
   }
 
   virtual bool VisitCallExpr(clang::CallExpr *CallExpr) {
-    clang::Expr* callee = CallExpr->getCallee()->IgnoreParenCasts();
+    clang::Expr *callee = CallExpr->getCallee()->IgnoreParenCasts();
     if (isa<clang::DeclRefExpr>(callee)) {
-      auto* decl_ref = cast<clang::DeclRefExpr>(callee);
-      auto* named_decl = decl_ref->getDecl();
+      auto *decl_ref = cast<clang::DeclRefExpr>(callee);
+      auto *named_decl = decl_ref->getDecl();
       if (named_decl) {
         if (auto name = get_fullname(named_decl);
-          !isDeclared(name)
-          && named_decl->isUsed()
-          && named_decl->isExternallyDeclarable()
-          && !named_decl->isInStdNamespace()
-          && !named_decl->isImplicit()
-          )
+            !isDeclared(name) && named_decl->isUsed() &&
+            named_decl->isExternallyDeclarable() &&
+            !named_decl->isInStdNamespace() && !named_decl->isImplicit())
           dependency_symbols.insert(name);
-        }
+      }
     }
     return true;
   }
-
 };
 
 #include <clang/AST/ASTConsumer.h>
@@ -182,7 +178,8 @@ private:
 class ReflectionFrontendAction : public clang::ASTFrontendAction {
 protected:
   virtual std::unique_ptr<clang::ASTConsumer>
-  CreateASTConsumer(clang::CompilerInstance &Compiler, llvm::StringRef InFile) {
+  CreateASTConsumer(clang::CompilerInstance &Compiler,
+                    llvm::StringRef InFile) override {
     std::cout << "Analysing file: " << InFile.str() << std::endl;
     return std::unique_ptr<clang::ASTConsumer>(
         new ReflectionASTConsumer(::reflection_generated));
@@ -195,7 +192,8 @@ void GenerateDependencyInfo() {
 
   auto generate_list = [](std::string &&name,
                           const std::set<std::string> content) {
-    reflection_generated << "    constexpr const char* const " << name << "[] = {";
+    reflection_generated << "    constexpr const char* const " << name
+                         << "[] = {";
     for (std::string_view element : content) {
       reflection_generated << "\n      \"" << element << ',' << '"';
     }

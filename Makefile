@@ -1,4 +1,4 @@
-CXX=g++ -std=c++26 -lLLVM -lclang -lclang-cpp
+CXX=g++ -std=c++26 -lLLVM -lclang -lclang-cpp -Wsuggest-override
 
 all: introspecto
 
