@@ -24,5 +24,3 @@ Introspect<UserType> introspect(UserType &instance) {
 }
 
 }; // namespace introspecto
-
-#include "../.introspecto_generated.h"

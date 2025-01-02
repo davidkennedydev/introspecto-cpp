@@ -44,6 +44,7 @@ public:
                           clang::StringRef SearchPath,
                           clang::StringRef RelativePath,
                           const clang::Module *Imported,
+                          bool ModuleImported,
                           clang::SrcMgr::CharacteristicKind FileType) override {
 
     if (IsAngled) {
@@ -194,11 +195,9 @@ void GenerateDependencyInfo() {
 
   auto generate_list = [](std::string &&name,
                           const std::set<std::string> content) {
-    reflection_generated << "    constexpr const char* const " << name << "[] = ";
-    bool first = true;
+    reflection_generated << "    constexpr const char* const " << name << "[] = {";
     for (std::string_view element : content) {
-      reflection_generated << (first ? '{' : ',') << "\n      \"" << element << '"';
-      first = false;
+      reflection_generated << "\n      \"" << element << ',' << '"';
     }
     reflection_generated << "\n    };\n\n";
   };
