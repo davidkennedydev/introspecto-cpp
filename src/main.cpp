@@ -84,23 +84,38 @@ public:
 
       std::string userType = declaration->getQualifiedNameAsString();
 
-      generated
-          << "template <> class Introspect<" << userType << "> {\n"
-          << "  " << userType << " &instance;\n"
-          << "public:\n\n"
-             "  constexpr Introspect("
-          << userType
-          << " &instance)"
-             ": instance(instance) {}\n\n"
-             "  constexpr void foreachField(FieldVisitor auto &&apply) {\n";
+      generated << "template <> class Introspect<" << userType << "> {\n"
+                << "  " << userType << " &instance;\n"
+                << "public:\n\n"
+                   "  constexpr Introspect("
+                << userType
+                << " &instance)"
+                   ": instance(instance) {}\n\n"
+                   "  constexpr void foreachField(Visitor auto &&apply) {\n";
 
       for (auto field : declaration->fields()) {
         generated << "    apply(\"" << field->getNameAsString()
                   << "\", instance." << field->getNameAsString() << ");\n";
       }
 
-      generated << "  }\n"
-                   "};\n\n";
+      generated << "  }\n";
+
+      generated
+          << "  constexpr void foreachBaseClass(Visitor auto &&apply) {\n";
+
+      // TODO: Iterate base classes
+      for (auto base_class_info : declaration->bases()) {
+        const auto *base_class =
+            base_class_info.getType()->getAsCXXRecordDecl();
+        generated << "    apply(\"" << base_class->getNameAsString() << "\", "
+                  << "static_cast<" << base_class->getNameAsString()
+                  << "&>(instance)"
+                  << ");\n";
+      }
+
+      generated << "  }\n";
+
+      generated << "};\n\n";
     }
     return true;
   }
